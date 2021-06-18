@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "convenience/builtins.hpp"
+#include "thirdparty/libdivide.h"
 
 namespace hashtable {
    struct LinearProbingFunc {
@@ -28,17 +29,23 @@ namespace hashtable {
 
    struct QuadraticProbingFunc {
      private:
-      const Reduction::FastModulo<size_t> fastmod;
+      const libdivide::divider<size_t> magic_div;
+      const size_t directory_size;
 
      public:
-      QuadraticProbingFunc(const size_t& directory_size) : fastmod(directory_size) {}
+      QuadraticProbingFunc(const size_t& directory_size) : magic_div(directory_size), directory_size(directory_size) {}
 
       static std::string name() {
          return "quadratic";
       }
 
       forceinline size_t operator()(const size_t& index, const size_t& probing_step) const {
-         return fastmod(index + probing_step * probing_step);
+         const auto next_ind = index + probing_step * probing_step;
+
+         const auto div = next_ind / magic_div;
+         const auto remainder = next_ind - div * directory_size;
+         assert(remainder < directory_size);
+         return remainder;
       }
    };
 
@@ -449,4 +456,4 @@ namespace hashtable {
 
       std::vector<Bucket> buckets;
    };
-} // namespace Hashtable
+} // namespace hashtable

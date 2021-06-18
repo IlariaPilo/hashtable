@@ -8,8 +8,4 @@ add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:include>)
-target_compile_options(${PROJECT_NAME} INTERFACE cxx_std_20)
-
-# Specify how to install hashing
-install(FILES hashtable.hpp TYPE INCLUDE)
-install(DIRECTORY include TYPE INCLUDE)
+target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)

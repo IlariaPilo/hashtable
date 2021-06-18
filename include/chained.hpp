@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <map>
 #include <memory>
@@ -233,4 +234,4 @@ namespace hashtable {
       // First bucket is always inline in the slot
       std::vector<FirstLevelSlot> slots;
    };
-} // namespace Hashtable
+} // namespace hashtable
