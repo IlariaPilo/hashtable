@@ -4,6 +4,7 @@ project("hashtable" VERSION 1.0
         HOMEPAGE_URL "https://github.com/andreaskipf/hashing")
 
 # Declare library & directories to include.
+add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
@@ -11,4 +12,4 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 target_sources(${PROJECT_NAME} INTERFACE hashtable.hpp include/)
 
 # Require c++20 for compilation
-target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)
+target_compile_(${PROJECT_NAME} INTERFACE cxx_std_20)
