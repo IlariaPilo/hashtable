@@ -5,7 +5,7 @@
 
 #include "convenience/builtins.hpp"
 
-namespace Hashtable {
+namespace hashtable {
    struct LinearProbingFunc {
      private:
       const size_t directory_size;

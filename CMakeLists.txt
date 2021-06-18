@@ -6,10 +6,10 @@ project("hashtable" VERSION 1.0
 # Declare library & directories to include.
 add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
-
-# Make IDE friendly
-target_sources(${PROJECT_NAME} INTERFACE hashtable.hpp include/)
-
-# Require c++20 for compilation
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:include>)
 target_compile_options(${PROJECT_NAME} INTERFACE cxx_std_20)
+
+# Specify how to install hashing
+install(FILES hashtable.hpp TYPE INCLUDE)
+install(DIRECTORY include TYPE INCLUDE)

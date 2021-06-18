@@ -9,7 +9,7 @@
 
 #include "convenience/builtins.hpp"
 
-namespace Hashtable {
+namespace hashtable {
    template<class Key, class Payload, size_t BucketSize, class HashFn, class ReductionFn,
             Key Sentinel = std::numeric_limits<Key>::max()>
    struct Chained {
