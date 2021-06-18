@@ -12,4 +12,4 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 target_sources(${PROJECT_NAME} INTERFACE hashtable.hpp include/)
 
 # Require c++20 for compilation
-target_compile_(${PROJECT_NAME} INTERFACE cxx_std_20)
+target_compile_options(${PROJECT_NAME} INTERFACE cxx_std_20)
