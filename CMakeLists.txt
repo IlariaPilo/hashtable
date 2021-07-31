@@ -5,7 +5,11 @@ project("hashtable" VERSION 1.0
 
 # Declare library & directories to include.
 add_library(${PROJECT_NAME} INTERFACE)
+target_sources(${PROJECT_NAME} INTERFACE hashtable.hpp include/)
 target_include_directories(${PROJECT_NAME} INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:include>)
 target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)
+
+# Benchmark & Test code
+add_subdirectory(src)
