@@ -127,6 +127,18 @@ namespace hashtable {
          return std::nullopt;
       }
 
+      /**
+       * Retrieves the payloads associated with keys within [min, max].
+       *
+       * @param min minimum key value (inclusive)
+       * @param max maximum key value (inclusive)
+       * @return a vector of payloads associated with keys within the range, if
+       *   any exist. Otherwise empty.
+       */
+      std::vector<Payload> lookup_range(const Key& min, const Key& max) {
+
+      }
+
       std::map<std::string, std::string> lookup_statistics(const std::vector<Key>& dataset) {
          UNUSED(dataset);
 
