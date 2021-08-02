@@ -130,13 +130,63 @@ namespace hashtable {
       /**
        * Retrieves the payloads associated with keys within [min, max].
        *
+       * NOTE: this function will only return sensible results if the employed
+       * hash function is monotone
+       *
        * @param min minimum key value (inclusive)
        * @param max maximum key value (inclusive)
        * @return a vector of payloads associated with keys within the range, if
        *   any exist. Otherwise empty.
        */
       std::vector<Payload> lookup_range(const Key& min, const Key& max) {
+         if (unlikely(min == Sentinel || max == Sentinel)) {
+            assert(false); // TODO(dominik): this must never happen in practice
+            return {};
+         }
 
+         // min will be in this slot or a subsequent slot
+         const auto lower_bound_index = reductionfn(hashfn(min));
+         auto current_slot_index = lower_bound_index;
+         auto& current_slot = slots[lower_bound_index];
+
+         // edge case: we've got an exact inline match
+         std::vector<Payload> result;
+         if (current_slot.key == min)
+            result.push_back(current_slot.payload);
+
+         // catch edge case: min == max
+         bool continue_until_next_slot = static_cast<bool>(likely(min != max));
+         do {
+            // scan entire bucket chain, adding all payloads
+            Bucket* bucket = current_slot.buckets;
+            while (bucket != nullptr) {
+               for (size_t i = 0; i < BucketSize; i++) {
+                  // add payload to result
+                  result.push_back(bucket->slots[i].payload);
+
+                  // if we encounter max in the bucket chain, we don't need to continue
+                  if (bucket->slots[i].key == max)
+                     continue_until_next_slot = false;
+
+                  // empty slot -> no futher bucket
+                  if (bucket->slots[i].key == Sentinel)
+                     break;
+               }
+               bucket = bucket->next;
+            }
+
+            // go to next slot
+            current_slot_index++;
+            while (current_slot_index > slots.size())
+               current_slot_index -= slots.size();
+            current_slot = slots[current_slot_index];
+
+            // ensure we don't scan the table again if max is never found
+            if (unlikely(current_slot_index == lower_bound_index))
+               break;
+         } while (continue_until_next_slot);
+
+         return result;
       }
 
       std::map<std::string, std::string> lookup_statistics(const std::vector<Key>& dataset) {
