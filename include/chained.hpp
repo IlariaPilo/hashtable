@@ -30,7 +30,7 @@ namespace hashtable {
          : hashfn(hashfn), reductionfn(ReductionFn(directory_address_count(capacity))), capacity(capacity),
            slots(directory_address_count(capacity)){};
 
-      Chained(Chained&&) = default;
+      Chained(Chained&&) noexcept = default;
 
       /**
        * Inserts a key, value/payload pair into the hashtable
@@ -42,7 +42,7 @@ namespace hashtable {
        */
       bool insert(const Key& key, const Payload& payload) {
          if (unlikely(key == Sentinel)) {
-            assert(false); // TODO: this must never happen in practice
+            assert(false); // TODO(unknown): this must never happen in practice
             return false;
          }
 
@@ -99,7 +99,7 @@ namespace hashtable {
        */
       std::optional<Payload> lookup(const Key& key) const {
          if (unlikely(key == Sentinel)) {
-            assert(false); // TODO: this must never happen in practice
+            assert(false); // TODO(unknown): this must never happen in practice
             return std::nullopt;
          }
 
