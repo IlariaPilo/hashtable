@@ -283,17 +283,17 @@ namespace hashtable {
          struct Slot {
             Key key = Sentinel;
             Payload payload;
-         } packed;
+         } packit;
 
          std::array<Slot, BucketSize> slots /*__attribute((aligned(sizeof(Key) * 8)))*/;
          Bucket* next = nullptr;
-      } packed;
+      } packit;
 
       struct FirstLevelSlot {
          Key key = Sentinel;
          Payload payload;
          Bucket* buckets = nullptr;
-      } packed;
+      } packit;
 
       // First bucket is always inline in the slot
       std::vector<FirstLevelSlot> slots;
