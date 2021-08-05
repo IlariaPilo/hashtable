@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <vector>
 
@@ -20,7 +21,7 @@ namespace hashtable {
 
       forceinline size_t operator()(const size_t& index, const size_t& probing_step) const {
          auto next = index + probing_step;
-         // TODO: benchmark whether this really is the fastest implementation
+         // TODO(dominik): benchmark whether this really is the fastest implementation
          while (unlikely(next >= directory_size))
             next -= directory_size;
          return next;
@@ -29,7 +30,7 @@ namespace hashtable {
 
    struct QuadraticProbingFunc {
      private:
-      const libdivide::divider<size_t> magic_div;
+      const libdivide::divider<std::uint64_t> magic_div;
       const size_t directory_size;
 
      public:
@@ -42,7 +43,7 @@ namespace hashtable {
       forceinline size_t operator()(const size_t& index, const size_t& probing_step) const {
          const auto next_ind = index + probing_step * probing_step;
 
-         const auto div = next_ind / magic_div;
+         const auto div = static_cast<std::uint64_t>(next_ind) / magic_div;
          const auto remainder = next_ind - div * directory_size;
          assert(remainder < directory_size);
          return remainder;
