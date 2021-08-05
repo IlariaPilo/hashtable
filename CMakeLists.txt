@@ -12,4 +12,7 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)
 
 # Benchmark & Test code
-add_subdirectory(src)
+get_directory_property(hasParent PARENT_DIRECTORY)
+if (NOT hasParent)
+  add_subdirectory(src)
+endif()
