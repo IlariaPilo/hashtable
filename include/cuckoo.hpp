@@ -276,7 +276,6 @@ namespace hashtable {
       }
    };
 
-#warning "Stanford uint32_t vectorized cuckoo is not enabled"
    //   template<class Payload, class HashFn1, class HashFn2, class ReductionFn1, class ReductionFn2, class KickingFn,
    //            uint32_t Sentinel>
    //   class Cuckoo<uint32_t, Payload, 8, HashFn1, HashFn2, ReductionFn1, ReductionFn2, KickingFn, Sentinel> {
@@ -459,4 +458,4 @@ namespace hashtable {
    //         }
    //      }
    //   };
-} // namespace Hashtable
+} // namespace hashtable
