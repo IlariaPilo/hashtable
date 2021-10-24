@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 
+// Order important
 #include "convenience/builtins.hpp"
-#include "convenience/tidy.hpp"
 
 namespace hashtable {
    template<class Key, class Payload, size_t BucketSize, class HashFn, class ReductionFn,
