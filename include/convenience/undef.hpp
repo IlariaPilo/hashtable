@@ -1,0 +1,9 @@
+#undef forceinline
+#undef likely
+#undef unlikely
+#undef neverinline
+#undef packit
+#undef alignit
+#undef prefetch
+#undef full_mem_barrier
+#undef UNUSED
