@@ -237,7 +237,7 @@ namespace hashtable {
      private:
       void insert(Key key, Payload payload, size_t kick_count) {
       start:
-         // TODO: track max kick_count for result graphs
+         // TODO(dominik): track max kick_count for result graphs
          if (kick_count > MaxKickCycleLength) {
             throw std::runtime_error("maximum kick cycle length (" + std::to_string(MaxKickCycleLength) + ") reached");
          }
