@@ -15,6 +15,7 @@
 
 #include "support/convenience.hpp"
 #include "support/datasets.hpp"
+#include "support/probing_set.hpp"
 
 using Key = std::uint64_t;
 using Payload = std::uint64_t;
@@ -29,6 +30,9 @@ const std::vector<std::int64_t> datasets{static_cast<std::underlying_type_t<data
                                          static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::FB),
                                          static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::OSM),
                                          static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::WIKI)};
+const std::vector<std::int64_t> probe_distributions{
+   static_cast<std::underlying_type_t<dataset::ProbingDistribution>>(dataset::ProbingDistribution::UNIFORM),
+   static_cast<std::underlying_type_t<dataset::ProbingDistribution>>(dataset::ProbingDistribution::EXPONENTIAL)};
 
 template<class Fn>
 static void BM_items_per_slot(benchmark::State& state) {
@@ -126,25 +130,24 @@ static void BM_hashtable(benchmark::State& state) {
    }
    const auto ht_build_end = std::chrono::steady_clock::now();
 
-   size_t i = 0;
-   size_t failures = 0;
-   for (auto _ : state) {
-      while (unlikely(i >= dataset.size()))
-         i -= dataset.size();
+   // probe in random order to limit caching effects
+   const auto probing_dist = static_cast<dataset::ProbingDistribution>(state.range(3));
+   const auto probing_set = dataset::generate_probing_set(dataset, probing_dist);
 
-      const auto& key = dataset[i];
+   size_t i = 0;
+   for (auto _ : state) {
+      while (unlikely(i >= probing_set.size()))
+         i -= probing_set.size();
+      const auto& key = probing_set[i++];
+
       const auto payload_opt = table.lookup(key);
       const auto payload = payload_opt.value();
       benchmark::DoNotOptimize(payload);
-      failures += payload != payloads[i];
 
       __sync_synchronize();
 
       i++;
    }
-
-   if (failures > 0)
-      throw std::runtime_error("Experienced " + std::to_string(failures) + " failures");
 
    state.counters["build_time"] = std::chrono::duration<double>(ht_build_end - ht_build_start).count();
 
@@ -163,31 +166,31 @@ static void BM_hashtable(benchmark::State& state) {
 
 #define SINGLE_ARG(...) __VA_ARGS__
 
-#define BM_Cuckoo(Hashfn, Kickingfn)                                         \
-   BENCHMARK_TEMPLATE(BM_hashtable,                                          \
-                      hashtable::Cuckoo<Key,                                 \
-                                        Payload,                             \
-                                        4,                                   \
-                                        Hashfn,                              \
-                                        hashing::MurmurFinalizer<Key>,       \
-                                        hashing::reduction::DoNothing<Key>,  \
-                                        hashing::reduction::FastModulo<Key>, \
-                                        Kickingfn>,                          \
-                      Hashfn)                                                \
-      ->ArgsProduct({dataset_sizes, datasets, overallocations})              \
+#define BM_Cuckoo(Hashfn, Kickingfn)                                                 \
+   BENCHMARK_TEMPLATE(BM_hashtable,                                                  \
+                      hashtable::Cuckoo<Key,                                         \
+                                        Payload,                                     \
+                                        4,                                           \
+                                        Hashfn,                                      \
+                                        hashing::MurmurFinalizer<Key>,               \
+                                        hashing::reduction::DoNothing<Key>,          \
+                                        hashing::reduction::FastModulo<Key>,         \
+                                        Kickingfn>,                                  \
+                      Hashfn)                                                        \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions}) \
       ->Iterations(10'000'000);
 
 #define BM_Probing(Hashfn, Probingfn)                                                                          \
    BENCHMARK_TEMPLATE(BM_hashtable,                                                                            \
                       hashtable::Probing<Key, Payload, Hashfn, hashing::reduction::DoNothing<Key>, Probingfn>, \
                       Hashfn)                                                                                  \
-      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                                \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                           \
       ->Iterations(10'000'000);                                                                                \
    BENCHMARK_TEMPLATE(                                                                                         \
       BM_hashtable,                                                                                            \
       hashtable::RobinhoodProbing<Key, Payload, Hashfn, hashing::reduction::DoNothing<Key>, Probingfn>,        \
       Hashfn)                                                                                                  \
-      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                                \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                           \
       ->Iterations(10'000'000);
 
 #define BM(Hashfn)                                                                                     \
@@ -197,7 +200,7 @@ static void BM_hashtable(benchmark::State& state) {
    BENCHMARK_TEMPLATE(BM_hashtable,                                                                    \
                       hashtable::Chained<Key, Payload, 2, Hashfn, hashing::reduction::DoNothing<Key>>, \
                       Hashfn)                                                                          \
-      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                   \
       ->Iterations(10'000'000);                                                                        \
    BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));                              \
    BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>));                            \
