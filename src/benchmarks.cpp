@@ -150,7 +150,7 @@ struct Universal {
 
 BM(SINGLE_ARG(Learned<learned_hashing::RMIHash<Data, 1'000'000>>))
 BM(SINGLE_ARG(Learned<learned_hashing::PGMHash<Data, 4>>));
-BM(SINGLE_ARG(Learned<learned_hashing::CHTHash<Data, 4>>));
+BM(SINGLE_ARG(Learned<learned_hashing::CHTHash<Data, 16>>));
 BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Data, 18, 4>>))
 BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Data, 4>>));
 
