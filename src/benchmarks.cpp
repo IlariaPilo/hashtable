@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstdint>
 #include <limits>
 #include <random>
@@ -116,12 +117,14 @@ static void BM_hashtable(benchmark::State& state) {
    const auto capacity = overallocation * static_cast<double>(dataset.size());
 
    // create hashtable and insert all keys
+   const auto ht_build_start = std::chrono::steady_clock::now();
    Hashtable table(capacity, HashFn(dataset.begin(), dataset.end(), capacity));
    for (size_t i = 0; i < dataset.size(); i++) {
       const auto& key = dataset[i];
       const auto& payload = payloads[i];
       table.insert(key, payload);
    }
+   const auto ht_build_end = std::chrono::steady_clock::now();
 
    size_t i = 0;
    size_t failures = 0;
@@ -142,6 +145,8 @@ static void BM_hashtable(benchmark::State& state) {
 
    if (failures > 0)
       throw std::runtime_error("Experienced " + std::to_string(failures) + " failures");
+
+   state.counters["build_time"] = std::chrono::duration<double>(ht_build_end - ht_build_start).count();
 
    state.counters["overallocation"] = overallocation;
    state.counters["table_capacity"] = capacity;
