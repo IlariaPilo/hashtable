@@ -1,4 +1,7 @@
 #include <cstdint>
+#include <limits>
+#include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -6,9 +9,14 @@
 
 #include <exotic_hashing.hpp>
 #include <hashing.hpp>
+#include <hashtable.hpp>
 #include <learned_hashing.hpp>
 
+#include "support/convenience.hpp"
 #include "support/datasets.hpp"
+
+using Key = std::uint64_t;
+using Payload = std::uint64_t;
 
 const std::vector<std::int64_t> dataset_sizes{200'000'000};
 const std::vector<std::int64_t> overallocations{100, 150, 200};
@@ -82,14 +90,116 @@ static void BM_items_per_slot(benchmark::State& state) {
                            static_cast<int64_t>(sizeof(typename decltype(dataset)::value_type)));
 }
 
+template<class Hashtable, class HashFn>
+static void BM_hashtable(benchmark::State& state) {
+   const auto ds_size = state.range(0);
+   const auto ds_id = static_cast<dataset::ID>(state.range(1));
+   const double overallocation = static_cast<double>(state.range(2)) / 100.0;
+
+   // load dataset
+   const auto dataset = dataset::load_cached(ds_id, ds_size);
+   if (dataset.empty())
+      throw std::runtime_error("benchmark dataset empty");
+
+   // generate random payloads
+   std::vector<Payload> payloads;
+   payloads.reserve(dataset.size());
+   std::random_device rd;
+   std::default_random_engine rng(rd());
+   std::uniform_int_distribution<Payload> dist(std::numeric_limits<Payload>::min(),
+                                               std::numeric_limits<Payload>::max());
+   for (size_t i = 0; i < dataset.size(); i++)
+      payloads.push_back(dist(rng));
+   if (payloads.size() != dataset.size())
+      throw std::runtime_error("O(hno)");
+
+   const auto capacity = overallocation * static_cast<double>(dataset.size());
+
+   // create hashtable and insert all keys
+   Hashtable table(capacity, HashFn(dataset.begin(), dataset.end(), capacity));
+   for (size_t i = 0; i < dataset.size(); i++) {
+      const auto& key = dataset[i];
+      const auto& payload = payloads[i];
+      table.insert(key, payload);
+   }
+
+   size_t i = 0;
+   size_t failures = 0;
+   for (auto _ : state) {
+      while (unlikely(i >= dataset.size()))
+         i -= dataset.size();
+
+      const auto& key = dataset[i];
+      const auto payload_opt = table.lookup(key);
+      const auto payload = payload_opt.value();
+      benchmark::DoNotOptimize(payload);
+      failures += payload != payloads[i];
+
+      __sync_synchronize();
+
+      i++;
+   }
+
+   if (failures > 0)
+      throw std::runtime_error("Experienced " + std::to_string(failures) + " failures");
+
+   state.counters["overallocation"] = overallocation;
+   state.counters["table_capacity"] = capacity;
+   state.counters["dataset_size"] = static_cast<double>(dataset.size());
+   state.counters["hashtable_bytes"] = table.byte_size();
+
+   for (const auto& stats : table.lookup_statistics(dataset))
+      state.counters[stats.first] = stats.second;
+
+   state.SetLabel(Hashtable::name() + ":" + dataset::name(ds_id));
+
+   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
+}
+
 #define SINGLE_ARG(...) __VA_ARGS__
 
-#define BM(Hashfn)                                              \
-   BENCHMARK_TEMPLATE(BM_items_per_slot, Hashfn)                \
-      ->ArgsProduct({dataset_sizes, datasets, overallocations}) \
-      ->Iterations(1);
+#define BM_Cuckoo(Hashfn, Kickingfn)                                         \
+   BENCHMARK_TEMPLATE(BM_hashtable,                                          \
+                      hashtable::Cuckoo<Key,                                 \
+                                        Payload,                             \
+                                        4,                                   \
+                                        Hashfn,                              \
+                                        hashing::MurmurFinalizer<Key>,       \
+                                        hashing::reduction::DoNothing<Key>,  \
+                                        hashing::reduction::FastModulo<Key>, \
+                                        Kickingfn>,                          \
+                      Hashfn)                                                \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations})              \
+      ->Iterations(10'000'000);
 
-using Data = std::uint64_t;
+#define BM_Probing(Hashfn, Probingfn)                                                                          \
+   BENCHMARK_TEMPLATE(BM_hashtable,                                                                            \
+                      hashtable::Probing<Key, Payload, Hashfn, hashing::reduction::DoNothing<Key>, Probingfn>, \
+                      Hashfn)                                                                                  \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                                \
+      ->Iterations(10'000'000);                                                                                \
+   BENCHMARK_TEMPLATE(                                                                                         \
+      BM_hashtable,                                                                                            \
+      hashtable::RobinhoodProbing<Key, Payload, Hashfn, hashing::reduction::DoNothing<Key>, Probingfn>,        \
+      Hashfn)                                                                                                  \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                                \
+      ->Iterations(10'000'000);
+
+#define BM(Hashfn)                                                                                     \
+   BENCHMARK_TEMPLATE(BM_items_per_slot, Hashfn)                                                       \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
+      ->Iterations(1);                                                                                 \
+   BENCHMARK_TEMPLATE(BM_hashtable,                                                                    \
+                      hashtable::Chained<Key, Payload, 2, Hashfn, hashing::reduction::DoNothing<Key>>, \
+                      Hashfn)                                                                          \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
+      ->Iterations(10'000'000);                                                                        \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));                              \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>));                            \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>));                            \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));                              \
+   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc));                           \
+   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc));
 
 template<class H>
 struct Learned {
@@ -97,7 +207,7 @@ struct Learned {
    Learned(const It& begin, const It& end, const size_t N) : hashfn(begin, end, N) {}
 
    template<class T>
-   size_t operator()(const T& key) {
+   size_t operator()(const T& key) const {
       return hashfn(key);
    }
 
@@ -115,7 +225,7 @@ struct Biased {
    Biased(const It&, const It&, const size_t N) : hashfn(N) {}
 
    template<class T>
-   size_t operator()(const T& key) {
+   size_t operator()(const T& key) const {
       return hashfn(key);
    }
 
@@ -133,7 +243,7 @@ struct Universal {
    Universal(const It&, const It&, const size_t N) : reductionfn(N) {}
 
    template<class T>
-   size_t operator()(const T& key) {
+   size_t operator()(const T& key) const {
       const auto hash = hashfn(key);
       const auto offs = reductionfn(hash);
       return offs;
@@ -145,16 +255,16 @@ struct Universal {
 
   private:
    const H hashfn;
-   const hashing::reduction::FastModulo<Data> reductionfn;
+   const hashing::reduction::FastModulo<Key> reductionfn;
 };
 
-BM(SINGLE_ARG(Learned<learned_hashing::RMIHash<Data, 1'000'000>>))
-BM(SINGLE_ARG(Learned<learned_hashing::PGMHash<Data, 4>>));
-BM(SINGLE_ARG(Learned<learned_hashing::CHTHash<Data, 16>>));
-BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Data, 18, 4>>))
-BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Data, 4>>));
+BM(SINGLE_ARG(Learned<learned_hashing::RMIHash<Key, 1'000'000>>))
+BM(SINGLE_ARG(Learned<learned_hashing::PGMHash<Key, 4>>));
+BM(SINGLE_ARG(Learned<learned_hashing::CHTHash<Key, 16>>));
+BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Key, 18, 4>>))
+BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Key, 4>>));
 
 BM(SINGLE_ARG(Biased<hashing::Fibonacci64>));
-BM(SINGLE_ARG(Universal<hashing::MurmurFinalizer<Data>>));
+BM(SINGLE_ARG(Universal<hashing::MurmurFinalizer<Key>>));
 
 BENCHMARK_MAIN();

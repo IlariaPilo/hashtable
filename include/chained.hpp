@@ -189,7 +189,7 @@ namespace hashtable {
          return result;
       }
 
-      std::map<std::string, std::string> lookup_statistics(const std::vector<Key>& dataset) {
+      std::map<std::string, double> lookup_statistics(const std::vector<Key>& dataset) {
          UNUSED(dataset);
 
          size_t max_chain_length = 0;
@@ -220,11 +220,19 @@ namespace hashtable {
             max_chain_length = std::max(max_chain_length, chain_length);
          }
 
-         return {{"empty_buckets", std::to_string(empty_buckets)},
-                 {"min_chain_length", std::to_string(min_chain_length)},
-                 {"max_chain_length", std::to_string(max_chain_length)},
-                 {"additional_buckets", std::to_string(additional_buckets)},
-                 {"empty_additional_slots", std::to_string(empty_additional_slots)}};
+         return {{"empty_buckets", empty_buckets},
+                 {"min_chain_length", min_chain_length},
+                 {"max_chain_length", max_chain_length},
+                 {"additional_buckets", additional_buckets},
+                 {"empty_additional_slots", empty_additional_slots}};
+      }
+
+      size_t byte_size() const {
+         size_t size = sizeof(decltype(*this)) + slots.size() * slot_byte_size();
+         for (const auto& slot : slots)
+            size += slot.buckets == nullptr ? 0 : slot.buckets->byte_size();
+
+         return size;
       }
 
       static constexpr forceinline size_t bucket_byte_size() {
@@ -236,7 +244,7 @@ namespace hashtable {
       }
 
       static forceinline std::string name() {
-         return "chained";
+         return "chained_" + hash_name() + "_" + reducer_name() + "_" + std::to_string(bucket_size());
       }
 
       static forceinline std::string hash_name() {
@@ -287,6 +295,10 @@ namespace hashtable {
 
          std::array<Slot, BucketSize> slots /*__attribute((aligned(sizeof(Key) * 8)))*/;
          Bucket* next = nullptr;
+
+         size_t byte_size() const {
+            return sizeof(decltype(*this)) + (next == nullptr ? 0 : next->byte_size());
+         }
       } packit;
 
       struct FirstLevelSlot {

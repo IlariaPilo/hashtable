@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "convenience/builtins.hpp"
@@ -74,7 +75,7 @@ namespace hashtable {
            probingfn(ProbingFn(directory_address_count(capacity))), capacity(capacity),
            buckets(directory_address_count(capacity)) {}
 
-      Probing(Probing&&) = default;
+      Probing(Probing&&) noexcept = default;
 
       /**
        * Inserts a key, value/payload pair into the hashtable
@@ -152,7 +153,7 @@ namespace hashtable {
          }
       }
 
-      std::map<std::string, std::string> lookup_statistics(const std::vector<Key>& dataset) {
+      std::map<std::string, double> lookup_statistics(const std::vector<Key>& dataset) {
          size_t min_psl = 0, max_psl = 0, total_psl = 0;
 
          for (const auto& key : dataset) {
@@ -185,9 +186,11 @@ namespace hashtable {
             continue;
          }
 
-         return {{"min_psl", std::to_string(min_psl)},
-                 {"max_psl", std::to_string(max_psl)},
-                 {"total_psl", std::to_string(total_psl)}};
+         return {{"min_psl", min_psl}, {"max_psl", max_psl}, {"total_psl", total_psl}};
+      }
+
+      size_t byte_size() const {
+         return sizeof(*this) + buckets.size() * bucket_byte_size();
       }
 
       static constexpr forceinline size_t bucket_byte_size() {
@@ -252,8 +255,8 @@ namespace hashtable {
             Key Sentinel = std::numeric_limits<Key>::max()>
    struct RobinhoodProbing {
      public:
-      typedef Key KeyType;
-      typedef Payload PayloadType;
+      using KeyType = Key;
+      using PayloadType = Payload;
 
      private:
       const HashFn hashfn;
@@ -267,7 +270,7 @@ namespace hashtable {
            probingfn(ProbingFn(directory_address_count(capacity))), capacity(capacity),
            buckets(directory_address_count(capacity)) {}
 
-      RobinhoodProbing(RobinhoodProbing&&) = default;
+      RobinhoodProbing(RobinhoodProbing&&) noexcept = default;
 
       /**
        * Inserts a key, value/payload pair into the hashtable
@@ -301,7 +304,7 @@ namespace hashtable {
             auto& bucket = buckets[slot_index];
             for (size_t i = 0; i < BucketSize; i++) {
                if (bucket.slots[i].key == Sentinel) {
-                  bucket.slots[i] = {.key = key, .psl = probing_step, .payload = payload};
+                  bucket.slots[i] = {.key = key, .payload = payload, .psl = probing_step};
                   return true;
                } else if (bucket.slots[i].key == key) {
                   // key already exists
@@ -312,7 +315,7 @@ namespace hashtable {
                   if (unlikely(orig_key == rich_slot.key))
                      throw std::runtime_error("insertion failed, infinite loop detected");
 
-                  bucket.slots[i] = {.key = key, .psl = probing_step, .payload = payload};
+                  bucket.slots[i] = {.key = key, .payload = payload, .psl = probing_step};
 
                   key = rich_slot.key;
                   payload = rich_slot.payload;
@@ -366,7 +369,7 @@ namespace hashtable {
          }
       }
 
-      std::map<std::string, std::string> lookup_statistics(const std::vector<Key>& dataset) {
+      std::map<std::string, double> lookup_statistics(const std::vector<Key>& dataset) {
          size_t min_psl = 0, max_psl = 0, total_psl = 0;
 
          for (const auto& key : dataset) {
@@ -399,9 +402,11 @@ namespace hashtable {
             continue;
          }
 
-         return {{"min_psl", std::to_string(min_psl)},
-                 {"max_psl", std::to_string(max_psl)},
-                 {"total_psl", std::to_string(total_psl)}};
+         return {{"min_psl", min_psl}, {"max_psl", max_psl}, {"total_psl", total_psl}};
+      }
+
+      size_t byte_size() const {
+         return sizeof(*this) + buckets.size() * bucket_byte_size();
       }
 
       static constexpr forceinline size_t bucket_byte_size() {
@@ -448,8 +453,8 @@ namespace hashtable {
       struct Bucket {
          struct Slot {
             Key key = Sentinel;
-            size_t psl;
             Payload payload;
+            size_t psl = 0;
          } packed;
 
          std::array<Slot, BucketSize> slots /*__attribute((aligned(sizeof(Key) * 8)))*/;

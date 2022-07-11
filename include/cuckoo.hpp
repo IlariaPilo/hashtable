@@ -146,6 +146,8 @@ namespace hashtable {
 
       std::mt19937 rand_; // RNG for moving items around
 
+      size_t max_kick_cnt = 0, total_kick_cnt = 0;
+
      public:
       Cuckoo(const size_t& capacity, const HashFn1 hashfn1 = HashFn1(), const HashFn2 hashfn2 = HashFn2())
          : MaxKickCycleLength(50000), hashfn1(hashfn1), hashfn2(hashfn2),
@@ -165,7 +167,7 @@ namespace hashtable {
             }
          }
 
-         auto i2 = reductionfn2(hashfn2(key, h1));
+         auto i2 = reductionfn2(hashfn2(key));
          if (i2 == i1) {
             i2 = (i1 == buckets.size() - 1) ? 0 : i1 + 1;
          }
@@ -181,7 +183,7 @@ namespace hashtable {
          return std::nullopt;
       }
 
-      std::map<std::string, std::string> lookup_statistics(const std::vector<Key>& dataset) const {
+      std::map<std::string, double> lookup_statistics(const std::vector<Key>& dataset) const {
          size_t primary_key_cnt = 0;
 
          for (const auto& key : dataset) {
@@ -194,14 +196,18 @@ namespace hashtable {
                   primary_key_cnt++;
          }
 
-         return {
-            {"primary_key_ratio",
-             std::to_string(static_cast<long double>(primary_key_cnt) / static_cast<long double>(dataset.size()))},
-         };
+         return {{"primary_key_ratio",
+                  static_cast<long double>(primary_key_cnt) / static_cast<long double>(dataset.size())},
+                 {"total_kick_count", total_kick_cnt},
+                 {"max_kick_count", max_kick_cnt}};
       }
 
       void insert(const Key& key, const Payload& value) {
          insert(key, value, 0);
+      }
+
+      size_t byte_size() const {
+         return sizeof(decltype(*this)) + buckets.size() * bucket_byte_size();
       }
 
       static constexpr forceinline size_t bucket_byte_size() {
@@ -237,14 +243,15 @@ namespace hashtable {
      private:
       void insert(Key key, Payload payload, size_t kick_count) {
       start:
-         // TODO(dominik): track max kick_count for result graphs
          if (kick_count > MaxKickCycleLength) {
             throw std::runtime_error("maximum kick cycle length (" + std::to_string(MaxKickCycleLength) + ") reached");
          }
+         max_kick_cnt = std::max(max_kick_cnt, kick_count);
+         total_kick_cnt += kick_count > 0;
 
          const auto h1 = hashfn1(key);
          const auto i1 = reductionfn1(h1);
-         auto i2 = reductionfn2(hashfn2(key, h1));
+         auto i2 = reductionfn2(hashfn2(key));
 
          if (unlikely(i2 == i1)) {
             i2 = (i1 == buckets.size() - 1) ? 0 : i1 + 1;
