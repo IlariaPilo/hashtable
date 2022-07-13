@@ -201,13 +201,7 @@ static void BM_hashtable(benchmark::State& state) {
                       hashtable::Chained<Key, Payload, 2, Hashfn, hashing::reduction::DoNothing<Key>>, \
                       Hashfn)                                                                          \
       ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                   \
-      ->Iterations(10'000'000);                                                                        \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));                              \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>));                            \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>));                            \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));                              \
-   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc));                           \
-   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc));
+      ->Iterations(10'000'000);
 
 template<class H>
 struct Learned {
