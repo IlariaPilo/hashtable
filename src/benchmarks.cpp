@@ -125,11 +125,13 @@ static void BM_hashtable(benchmark::State& state) {
    const auto ht_build_start = std::chrono::steady_clock::now();
    Hashtable table(address_space, HashFn(dataset.begin(), dataset.end(), capacity));
    bool failed = false;
+   size_t failed_at = 0;
    try {
       for (size_t i = 0; i < dataset.size(); i++) {
          const auto& key = dataset[i];
          const auto& payload = payloads[i];
          table.insert(key, payload);
+         failed_at++;
       }
    } catch (const std::runtime_error& e) { failed = true; }
    const auto ht_build_end = std::chrono::steady_clock::now();
@@ -158,6 +160,7 @@ static void BM_hashtable(benchmark::State& state) {
 
    state.counters["build_time"] = std::chrono::duration<double>(ht_build_end - ht_build_start).count();
    state.counters["failed"] = failed ? 1.0 : 0.0;
+   state.counters["failed_at"] = static_cast<double>(failed_at);
 
    state.counters["overallocation"] = overallocation;
    state.counters["table_capacity"] = capacity;
