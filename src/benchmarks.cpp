@@ -123,11 +123,14 @@ static void BM_hashtable(benchmark::State& state) {
    // create hashtable and insert all keys
    const auto ht_build_start = std::chrono::steady_clock::now();
    Hashtable table(capacity, HashFn(dataset.begin(), dataset.end(), capacity));
-   for (size_t i = 0; i < dataset.size(); i++) {
-      const auto& key = dataset[i];
-      const auto& payload = payloads[i];
-      table.insert(key, payload);
-   }
+   bool failed = false;
+   try {
+      for (size_t i = 0; i < dataset.size(); i++) {
+         const auto& key = dataset[i];
+         const auto& payload = payloads[i];
+         table.insert(key, payload);
+      }
+   } catch (const std::runtime_error& e) { failed = true; }
    const auto ht_build_end = std::chrono::steady_clock::now();
 
    // probe in random order to limit caching effects
@@ -136,6 +139,9 @@ static void BM_hashtable(benchmark::State& state) {
 
    size_t i = 0;
    for (auto _ : state) {
+      if (failed)
+         continue;
+
       while (unlikely(i >= probing_set.size()))
          i -= probing_set.size();
       const auto& key = probing_set[i++];
@@ -150,17 +156,19 @@ static void BM_hashtable(benchmark::State& state) {
    }
 
    state.counters["build_time"] = std::chrono::duration<double>(ht_build_end - ht_build_start).count();
+   state.counters["failed"] = failed ? 1.0 : 0.0;
 
    state.counters["overallocation"] = overallocation;
    state.counters["table_capacity"] = capacity;
    state.counters["dataset_size"] = static_cast<double>(dataset.size());
    state.counters["hashtable_bytes"] = table.byte_size();
 
-   for (const auto& stats : table.lookup_statistics(dataset))
-      state.counters[stats.first] = stats.second;
+   if (!failed) {
+      for (const auto& stats : table.lookup_statistics(dataset))
+         state.counters[stats.first] = stats.second;
+   }
 
-   state.SetLabel(Hashtable::name() + ":" + dataset::name(ds_id));
-
+   state.SetLabel(Hashtable::name() + ":" + dataset::name(ds_id) + ":" + dataset::name(probing_dist));
    state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
 }
 
@@ -201,7 +209,13 @@ static void BM_hashtable(benchmark::State& state) {
                       hashtable::Chained<Key, Payload, 2, Hashfn, hashing::reduction::DoNothing<Key>>, \
                       Hashfn)                                                                          \
       ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                   \
-      ->Iterations(10'000'000);
+      ->Iterations(10'000'000);                                                                        \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));                              \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>));                            \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>));                            \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));
+//    BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc));                           \
+//    BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc));
 
 template<class H>
 struct Learned {
