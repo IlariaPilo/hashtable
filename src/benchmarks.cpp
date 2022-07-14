@@ -22,6 +22,7 @@ using Payload = std::uint64_t;
 
 const std::vector<std::int64_t> dataset_sizes{200'000'000};
 const std::vector<std::int64_t> overallocations{100, 150, 200};
+const std::vector<std::int64_t> cuckoo_overallocations{100, 110, 125};
 const std::vector<std::int64_t> datasets{static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::SEQUENTIAL),
                                          static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::GAPPED_10),
                                          static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::UNIFORM),
@@ -178,18 +179,18 @@ static void BM_hashtable(benchmark::State& state) {
 
 #define SINGLE_ARG(...) __VA_ARGS__
 
-#define BM_Cuckoo(Hashfn, Kickingfn)                                                 \
-   BENCHMARK_TEMPLATE(BM_hashtable,                                                  \
-                      hashtable::Cuckoo<Key,                                         \
-                                        Payload,                                     \
-                                        4,                                           \
-                                        Hashfn,                                      \
-                                        hashing::MurmurFinalizer<Key>,               \
-                                        hashing::reduction::DoNothing<Key>,          \
-                                        hashing::reduction::FastModulo<Key>,         \
-                                        Kickingfn>,                                  \
-                      Hashfn)                                                        \
-      ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions}) \
+#define BM_Cuckoo(Hashfn, Kickingfn)                                                        \
+   BENCHMARK_TEMPLATE(BM_hashtable,                                                         \
+                      hashtable::Cuckoo<Key,                                                \
+                                        Payload,                                            \
+                                        4,                                                  \
+                                        Hashfn,                                             \
+                                        hashing::MurmurFinalizer<Key>,                      \
+                                        hashing::reduction::DoNothing<Key>,                 \
+                                        hashing::reduction::FastModulo<Key>,                \
+                                        Kickingfn>,                                         \
+                      Hashfn)                                                               \
+      ->ArgsProduct({dataset_sizes, datasets, cuckoo_overallocations, probe_distributions}) \
       ->Iterations(10'000'000);
 
 #define BM_Probing(Hashfn, Probingfn)                                                                          \
