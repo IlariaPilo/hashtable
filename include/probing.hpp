@@ -161,6 +161,7 @@ namespace hashtable {
 
       std::map<std::string, double> lookup_statistics(const std::vector<Key>& dataset) {
          size_t min_psl = 0, max_psl = 0, total_psl = 0;
+         long double average_psl = 0;
 
          for (const auto& key : dataset) {
             // Using template functor should successfully inline actual hash computation
@@ -172,6 +173,7 @@ namespace hashtable {
                auto& bucket = buckets[slot_index];
                for (size_t i = 0; i < BucketSize; i++) {
                   if (bucket.slots[i].key == key) {
+                     average_psl += static_cast<long double>(probing_step);
                      min_psl = std::min(min_psl, probing_step);
                      max_psl = std::max(max_psl, probing_step);
                      total_psl += probing_step;
@@ -192,7 +194,9 @@ namespace hashtable {
             continue;
          }
 
-         return {{"min_psl", min_psl}, {"max_psl", max_psl}, {"total_psl", total_psl}};
+         average_psl /= static_cast<long double>(dataset.size());
+
+         return {{"min_psl", min_psl}, {"max_psl", max_psl}, {"average_psl", average_psl}, {"total_psl", total_psl}};
       }
 
       size_t byte_size() const {
