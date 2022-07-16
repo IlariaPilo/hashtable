@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -56,6 +57,7 @@ namespace hashtable {
             class HashFn,
             class ReductionFn,
             class ProbingFn,
+            size_t MaxProbingSteps = 500,
             size_t BucketSize = 1,
             Key Sentinel = std::numeric_limits<Key>::max()>
    struct Probing {
@@ -90,7 +92,7 @@ namespace hashtable {
        */
       bool insert(const Key& key, const Payload payload) {
          if (unlikely(key == Sentinel)) {
-            assert(false); // TODO: this must never happen in practice
+            assert(false); // TODO(dominik): this must never happen in practice
             return false;
          }
 
@@ -100,6 +102,10 @@ namespace hashtable {
          size_t probing_step = 0;
 
          for (;;) {
+            if (probing_step > MaxProbingSteps)
+               throw std::runtime_error("Maximum probing step count (" + std::to_string(MaxProbingSteps) +
+                                        ") exceeded");
+
             auto& bucket = buckets[slot_index];
             for (size_t i = 0; i < BucketSize; i++) {
                if (bucket.slots[i].key == Sentinel) {
