@@ -206,11 +206,13 @@ static void BM_hashtable(benchmark::State& state) {
       ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                           \
       ->Iterations(10'000'000);
 
-#define BM(Hashfn)                                                          \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));   \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>)); \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>)); \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));
+#define BM(Hashfn)                                                           \
+   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc)); \
+   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc));
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));   \
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>)); \
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>)); \
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));
 //    BENCHMARK_TEMPLATE(BM_items_per_slot, Hashfn)                                                       \
 //       ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
 //       ->Iterations(1);                                                                                 \
@@ -219,8 +221,6 @@ static void BM_hashtable(benchmark::State& state) {
 //                       Hashfn)                                                                          \
 //       ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                   \
 //       ->Iterations(10'000'000);                                                                        \
-//    BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc));                           \
-//    BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc));
 
 template<class H>
 struct Learned {
@@ -279,10 +279,9 @@ struct Universal {
    const hashing::reduction::FastModulo<Key> reductionfn;
 };
 
-BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Key, 18, 4>>))
 BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Key, 4>>));
-
-BM(SINGLE_ARG(Biased<hashing::Fibonacci64>));
 BM(SINGLE_ARG(Universal<hashing::MurmurFinalizer<Key>>));
+BM(SINGLE_ARG(Biased<hashing::Fibonacci64>));
+BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Key, 18, 4>>))
 
 BENCHMARK_MAIN();
