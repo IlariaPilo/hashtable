@@ -23,7 +23,7 @@ using Payload = std::uint64_t;
 
 const std::vector<std::int64_t> dataset_sizes{200'000'000};
 const std::vector<std::int64_t> overallocations{100, 150, 200};
-const std::vector<std::int64_t> cuckoo_overallocations{100, 110, 125};
+const std::vector<std::int64_t> cuckoo_overallocations{100, 105, 110, 125};
 const std::vector<std::int64_t> datasets{static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::SEQUENTIAL),
                                          static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::GAPPED_10),
                                          static_cast<std::underlying_type_t<dataset::ID>>(dataset::ID::UNIFORM),
@@ -256,7 +256,7 @@ static void BM_build(benchmark::State& state) {
                                         Payload,                                            \
                                         4,                                                  \
                                         Hashfn,                                             \
-                                        hashing::MurmurFinalizer<Key>,                      \
+                                        hashing::XXHash<Key>,                               \
                                         hashing::reduction::DoNothing<Key>,                 \
                                         hashing::reduction::FastModulo<Key>,                \
                                         Kickingfn>,                                         \
