@@ -210,9 +210,12 @@ static void BM_build(benchmark::State& state) {
    const auto capacity = Hashtable::directory_address_count(address_space);
 
    // create hashtable and insert all keys
-   const auto ht_build_start = std::chrono::steady_clock::now();
+   const auto sample_start = std::chrono::steady_clock::now();
    std::vector<typename decltype(dataset)::value_type> sample(dataset.begin(), dataset.end());
    std::sort(sample.begin(), sample.end());
+   const auto sample_end = std::chrono::steady_clock::now();
+
+   const auto ht_build_start = std::chrono::steady_clock::now();
    Hashtable table(address_space, HashFn(sample.begin(), sample.end(), capacity));
    bool failed = false;
    size_t failed_at = 0;
@@ -232,6 +235,7 @@ static void BM_build(benchmark::State& state) {
    }
 
    state.counters["build_time"] = std::chrono::duration<double>(ht_build_end - ht_build_start).count();
+   state.counters["sample_time"] = std::chrono::duration<double>(sample_end - sample_start).count();
    state.counters["failed"] = failed ? 1.0 : 0.0;
    state.counters["failed_at"] = static_cast<double>(failed_at);
 
@@ -362,9 +366,9 @@ struct Universal {
 BM(SINGLE_ARG(Learned<learned_hashing::RMIHash<Key, 1'000'000>>))
 BM(SINGLE_ARG(Learned<learned_hashing::PGMHash<Key, 4>>));
 BM(SINGLE_ARG(Learned<learned_hashing::CHTHash<Key, 16>>));
-//BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Key, 4>>));
-//BM(SINGLE_ARG(Universal<hashing::MurmurFinalizer<Key>>));
-//BM(SINGLE_ARG(Biased<hashing::Fibonacci64>));
-//BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Key, 18, 4>>))
+BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Key, 4>>));
+BM(SINGLE_ARG(Universal<hashing::MurmurFinalizer<Key>>));
+BM(SINGLE_ARG(Biased<hashing::Fibonacci64>));
+BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Key, 18, 4>>))
 
 BENCHMARK_MAIN();
