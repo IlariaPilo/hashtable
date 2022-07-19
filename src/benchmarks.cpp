@@ -256,7 +256,7 @@ static void BM_build(benchmark::State& state) {
                                         Payload,                                            \
                                         4,                                                  \
                                         Hashfn,                                             \
-                                        hashing::XXHash<Key>,                               \
+                                        hashing::XXHash3<Key>,                              \
                                         hashing::reduction::DoNothing<Key>,                 \
                                         hashing::reduction::FastModulo<Key>,                \
                                         Kickingfn>,                                         \
@@ -285,14 +285,13 @@ static void BM_build(benchmark::State& state) {
       ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
       ->Iterations(1);
 
-#define BM(Hashfn)                      \
-   BM_Build(SINGLE_ARG(Hashfn), false); \
+#define BM(Hashfn)                                                          \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));   \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>)); \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>)); \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));   \
 //   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc)); \
 //   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc)); \
-//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));   \
-//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>)); \
-//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>)); \
-//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));  \
 //    BENCHMARK_TEMPLATE(BM_items_per_slot, Hashfn)                                                       \
 //       ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
 //       ->Iterations(1);                                                                                 \
