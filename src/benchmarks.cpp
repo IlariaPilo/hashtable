@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <limits>
@@ -177,6 +178,76 @@ static void BM_hashtable(benchmark::State& state) {
    state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
 }
 
+template<class Hashtable, class HashFn, bool Sorted>
+static void BM_build(benchmark::State& state) {
+   const auto ds_size = state.range(0);
+   const auto ds_id = static_cast<dataset::ID>(state.range(1));
+   const double overallocation = static_cast<double>(state.range(2)) / 100.0;
+
+   // load dataset
+   auto dataset = dataset::load_cached(ds_id, ds_size);
+   if (dataset.empty())
+      throw std::runtime_error("benchmark dataset empty");
+
+   // shuffle dataset
+   if constexpr (!Sorted)
+      std::random_shuffle(dataset.begin(), dataset.end());
+
+   // generate random payloads
+   std::vector<Payload> payloads;
+   payloads.reserve(dataset.size());
+
+   std::random_device rd;
+   std::default_random_engine rng(rd());
+   std::uniform_int_distribution<Payload> dist(std::numeric_limits<Payload>::min(),
+                                               std::numeric_limits<Payload>::max());
+   for (size_t i = 0; i < dataset.size(); i++)
+      payloads.push_back(dist(rng));
+   if (payloads.size() != dataset.size())
+      throw std::runtime_error("O(hno)");
+
+   const auto address_space = overallocation * static_cast<double>(dataset.size());
+   const auto capacity = Hashtable::directory_address_count(address_space);
+
+   // create hashtable and insert all keys
+   const auto ht_build_start = std::chrono::steady_clock::now();
+   std::vector<typename decltype(dataset)::value_type> sample(dataset.begin(), dataset.end());
+   std::sort(sample.begin(), sample.end());
+   Hashtable table(address_space, HashFn(sample.begin(), sample.end(), capacity));
+   bool failed = false;
+   size_t failed_at = 0;
+   try {
+      for (size_t i = 0; i < dataset.size(); i++) {
+         const auto& key = dataset[i];
+         const auto& payload = payloads[i];
+         table.insert(key, payload);
+         failed_at++;
+      }
+   } catch (const std::runtime_error& e) { failed = true; }
+   const auto ht_build_end = std::chrono::steady_clock::now();
+
+   size_t i = 0;
+   for (auto _ : state) {
+      i++;
+   }
+
+   state.counters["build_time"] = std::chrono::duration<double>(ht_build_end - ht_build_start).count();
+   state.counters["failed"] = failed ? 1.0 : 0.0;
+   state.counters["failed_at"] = static_cast<double>(failed_at);
+
+   state.counters["overallocation"] = overallocation;
+   state.counters["table_capacity"] = capacity;
+   state.counters["dataset_size"] = static_cast<double>(dataset.size());
+   state.counters["hashtable_bytes"] = table.byte_size();
+
+   if (!failed) {
+      for (const auto& stats : table.lookup_statistics(dataset))
+         state.counters[stats.first] = stats.second;
+   }
+
+   state.SetLabel(Hashtable::name() + ":" + dataset::name(ds_id) + ":" + std::to_string(Sorted));
+}
+
 #define SINGLE_ARG(...) __VA_ARGS__
 
 #define BM_Cuckoo(Hashfn, Kickingfn)                                                        \
@@ -206,13 +277,22 @@ static void BM_hashtable(benchmark::State& state) {
       ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                           \
       ->Iterations(10'000'000);
 
-#define BM(Hashfn)                                                           \
-   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc)); \
-   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc));
+#define BM_Build(Hashfn, Sorted)                                                                       \
+   BENCHMARK_TEMPLATE(BM_build,                                                                        \
+                      hashtable::Chained<Key, Payload, 2, Hashfn, hashing::reduction::DoNothing<Key>>, \
+                      Hashfn,                                                                          \
+                      Sorted)                                                                          \
+      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
+      ->Iterations(1);
+
+#define BM(Hashfn)                      \
+   BM_Build(SINGLE_ARG(Hashfn), false); \
+//   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc)); \
+//   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc)); \
 //   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));   \
 //   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>)); \
 //   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>)); \
-//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));  \
 //    BENCHMARK_TEMPLATE(BM_items_per_slot, Hashfn)                                                       \
 //       ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
 //       ->Iterations(1);                                                                                 \
