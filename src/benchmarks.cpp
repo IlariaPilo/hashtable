@@ -285,11 +285,12 @@ static void BM_build(benchmark::State& state) {
       ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
       ->Iterations(1);
 
-#define BM(Hashfn)                                                          \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));   \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>)); \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>)); \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));   \
+#define BM(Hashfn)                      \
+   BM_Build(SINGLE_ARG(Hashfn), false); \
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));   \
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>)); \
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>)); \
+//   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));   \
 //   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc)); \
 //   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc)); \
 //    BENCHMARK_TEMPLATE(BM_items_per_slot, Hashfn)                                                       \
@@ -358,9 +359,12 @@ struct Universal {
    const hashing::reduction::FastModulo<Key> reductionfn;
 };
 
-BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Key, 4>>));
-BM(SINGLE_ARG(Universal<hashing::MurmurFinalizer<Key>>));
-BM(SINGLE_ARG(Biased<hashing::Fibonacci64>));
-BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Key, 18, 4>>))
+BM(SINGLE_ARG(Learned<learned_hashing::RMIHash<Key, 1'000'000>>))
+BM(SINGLE_ARG(Learned<learned_hashing::PGMHash<Key, 4>>));
+BM(SINGLE_ARG(Learned<learned_hashing::CHTHash<Key, 16>>));
+//BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Key, 4>>));
+//BM(SINGLE_ARG(Universal<hashing::MurmurFinalizer<Key>>));
+//BM(SINGLE_ARG(Biased<hashing::Fibonacci64>));
+//BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Key, 18, 4>>))
 
 BENCHMARK_MAIN();
