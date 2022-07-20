@@ -108,10 +108,6 @@ static void BM_hashtable(benchmark::State& state) {
    if (dataset.empty())
       throw std::runtime_error("benchmark dataset empty");
 
-   // make sure dataset is shuffled
-   if constexpr (!Presorted)
-      std::random_shuffle(dataset.begin(), dataset.end());
-
    // generate random payloads
    std::vector<Payload> payloads;
    payloads.reserve(dataset.size());
@@ -127,19 +123,23 @@ static void BM_hashtable(benchmark::State& state) {
    const auto address_space = overallocation * static_cast<double>(dataset.size());
    const auto capacity = Hashtable::directory_address_count(address_space);
 
+   // make sure we actually copy & sort during measurment
+   if constexpr (!Presorted)
+      std::random_shuffle(dataset.begin(), dataset.end());
+
    const auto sample_start_time = std::chrono::steady_clock::now();
-   std::vector<typename decltype(dataset)::value_type> sample(dataset.begin(), dataset.end());
-   std::sort(sample.begin(), sample.end());
+   std::vector<typename decltype(dataset)::value_type> sorted_ds(dataset.begin(), dataset.end());
+   std::sort(sorted_ds.begin(), sorted_ds.end());
    const auto sample_end_time = std::chrono::steady_clock::now();
 
    // create hashtable and insert all keys
    const auto ht_build_start = std::chrono::steady_clock::now();
-   Hashtable table(address_space, HashFn(sample.begin(), sample.end(), capacity));
+   Hashtable table(address_space, HashFn(sorted_ds.begin(), sorted_ds.end(), capacity));
    bool failed = false;
    size_t failed_at = 0;
    try {
-      for (size_t i = 0; i < dataset.size(); i++) {
-         const auto& key = dataset[i];
+      for (size_t i = 0; i < sorted_ds.size(); i++) {
+         const auto& key = sorted_ds[i];
          const auto& payload = payloads[i];
          table.insert(key, payload);
          failed_at++;
@@ -230,18 +230,18 @@ static void BM_hashtable(benchmark::State& state) {
       ->Iterations(1);
 
 #define BM(Hashfn)                                                                                     \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));                              \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>));                            \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>));                            \
-   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));                              \
-   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc));                           \
-   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc));                        \
    BENCHMARK_TEMPLATE(BM_hashtable,                                                                    \
                       hashtable::Chained<Key, Payload, 2, Hashfn, hashing::reduction::DoNothing<Key>>, \
                       Hashfn,                                                                          \
                       false)                                                                           \
       ->ArgsProduct({dataset_sizes, datasets, overallocations, probe_distributions})                   \
       ->Iterations(10'000'000);                                                                        \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BalancedKicking));                              \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<20>));                            \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::BiasedKicking<80>));                            \
+   BM_Cuckoo(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::UnbiasedKicking));                              \
+   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::LinearProbingFunc));                           \
+   BM_Probing(SINGLE_ARG(Hashfn), SINGLE_ARG(hashtable::QuadraticProbingFunc));                        \
 //   BENCHMARK_TEMPLATE(BM_items_per_slot, Hashfn)                                                       \
 //      ->ArgsProduct({dataset_sizes, datasets, overallocations})                                        \
 //      ->Iterations(1);                                                                                 \
