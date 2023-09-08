@@ -308,7 +308,7 @@ BM(SINGLE_ARG(Learned<learned_hashing::TrieSplineHash<Key, 4>>));
 BM(SINGLE_ARG(Universal<hashing::MurmurFinalizer<Key>>));
 BM(SINGLE_ARG(Biased<hashing::Fibonacci64>));
 BM(SINGLE_ARG(Learned<learned_hashing::RadixSplineHash<Key, 18, 4>>))
-BM(SINGLE_ARG(Learned<learned_hashing::PGMHash<Key, 4>>));
+// BM(SINGLE_ARG(Learned<learned_hashing::PGMHash<Key, 4>>));
 BM(SINGLE_ARG(Learned<learned_hashing::CHTHash<Key, 16>>));
 
 BENCHMARK_MAIN();
