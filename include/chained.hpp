@@ -189,6 +189,7 @@ namespace hashtable {
             //    break;
             if (unlikely(current_slot_index == slots.size()))
                break;
+            current_slot = slots[current_slot_index];
          } while (continue_until_next_slot);
 
          return result;
