@@ -161,15 +161,18 @@ namespace hashtable {
             Bucket* bucket = current_slot.buckets;
             while (bucket != nullptr) {
                for (size_t i = 0; i < BucketSize; i++) {
-                  // add payload to result
-                  result.push_back(bucket->slots[i].payload);
+                  Key k = bucket->slots[i].key;
+                  if (k >= min || k <= max) {
+                     // add payload to result
+                     result.push_back(bucket->slots[i].payload);
+                  }
 
-                  // if we encounter max in the bucket chain, we don't need to continue
-                  if (bucket->slots[i].key == max)
+                  // if we encounter something >= max in the bucket chain, we don't need to continue
+                  if (k >= max && k != Sentinel)
                      continue_until_next_slot = false;
 
                   // empty slot -> no futher bucket
-                  if (bucket->slots[i].key == Sentinel)
+                  if (k == Sentinel)
                      break;
                }
                bucket = bucket->next;
@@ -177,12 +180,14 @@ namespace hashtable {
 
             // go to next slot
             current_slot_index++;
-            while (current_slot_index > slots.size())
-               current_slot_index -= slots.size();
-            current_slot = slots[current_slot_index];
+            // while (current_slot_index > slots.size())
+            //    current_slot_index -= slots.size();
+            // current_slot = slots[current_slot_index];
 
             // ensure we don't scan the table again if max is never found
-            if (unlikely(current_slot_index == lower_bound_index))
+            // if (unlikely(current_slot_index == lower_bound_index))
+            //    break;
+            if (unlikely(current_slot_index == slots.size()))
                break;
          } while (continue_until_next_slot);
 
