@@ -151,18 +151,18 @@ namespace hashtable {
 
          // edge case: we've got an exact inline match
          std::vector<Payload> result;
-         if (current_slot.key == min)
-            result.push_back(current_slot.payload);
 
          // catch edge case: min == max
          bool continue_until_next_slot = static_cast<bool>(likely(min != max));
          do {
             // scan entire bucket chain, adding all payloads
+            if (current_slot.key >= min && current_slot.key <= max)
+               result.push_back(current_slot.payload);
             Bucket* bucket = current_slot.buckets;
             while (bucket != nullptr) {
                for (size_t i = 0; i < BucketSize; i++) {
                   Key k = bucket->slots[i].key;
-                  if (k >= min || k <= max) {
+                  if (k >= min && k <= max) {
                      // add payload to result
                      result.push_back(bucket->slots[i].payload);
                   }
