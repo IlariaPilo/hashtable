@@ -150,8 +150,10 @@ namespace hashtable {
          // edge case: we've got an exact inline match
          std::vector<Payload> result;
 
-         for (auto i = lower_bound_index, continue_until_next_slot = true; 
-                  i<slots.size() && continue_until_next_slot; i++) {
+         // loop variables
+         auto i = lower_bound_index;
+         bool continue_until_next_slot = true;
+         for (; i<slots.size() && continue_until_next_slot; i++) {
             // get the current slot
             auto& current_slot = slots[i];
             // start from the current slot
