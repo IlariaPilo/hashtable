@@ -146,18 +146,20 @@ namespace hashtable {
 
          // min will be in this slot or a subsequent slot
          const auto lower_bound_index = reductionfn(hashfn(min));
-         auto current_slot_index = lower_bound_index;
-         auto& current_slot = slots[lower_bound_index];
 
          // edge case: we've got an exact inline match
          std::vector<Payload> result;
 
-         // catch edge case: min == max
-         bool continue_until_next_slot = static_cast<bool>(likely(min != max));
-         do {
-            // scan entire bucket chain, adding all payloads
+         for (auto i = lower_bound_index, bool continue_until_next_slot = true; 
+                  i<slots.size() && continue_until_next_slot; i++) {
+            // get the current slot
+            auto& current_slot = slots[i];
+            // start from the current slot
             if (current_slot.key >= min && current_slot.key <= max)
                result.push_back(current_slot.payload);
+            if (current_slot.key >= max && current_slot.key != Sentinel)
+               continue_until_next_slot = false;
+            // now, proceed with the buckets
             Bucket* bucket = current_slot.buckets;
             while (bucket != nullptr) {
                for (size_t i = 0; i < BucketSize; i++) {
@@ -166,32 +168,16 @@ namespace hashtable {
                      // add payload to result
                      result.push_back(bucket->slots[i].payload);
                   }
-
                   // if we encounter something >= max in the bucket chain, we don't need to continue
                   if (k >= max && k != Sentinel)
                      continue_until_next_slot = false;
-
                   // empty slot -> no futher bucket
                   if (k == Sentinel)
                      break;
                }
                bucket = bucket->next;
             }
-
-            // go to next slot
-            current_slot_index++;
-            // while (current_slot_index > slots.size())
-            //    current_slot_index -= slots.size();
-            // current_slot = slots[current_slot_index];
-
-            // ensure we don't scan the table again if max is never found
-            // if (unlikely(current_slot_index == lower_bound_index))
-            //    break;
-            if (unlikely(current_slot_index == slots.size()))
-               break;
-            current_slot = slots[current_slot_index];
-         } while (continue_until_next_slot);
-
+         }
          return result;
       }
 
