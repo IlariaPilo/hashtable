@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <omp.h>
 
 // Order important
 #include "convenience/builtins.hpp"
@@ -28,7 +29,11 @@ namespace hashtable {
      public:
       explicit Chained(const size_t& capacity, const HashFn hashfn = HashFn())
          : hashfn(hashfn), reductionfn(ReductionFn(directory_address_count(capacity))), capacity(capacity),
-           slots(directory_address_count(capacity)){};
+           slots(directory_address_count(capacity)), locks(directory_address_count(capacity)) {
+         // initialize locks
+         for (size_t i=0; i<directory_address_count(capacity); i++)
+            omp_init_lock(&(locks[i]));
+      }
 
       Chained(Chained&&) noexcept = default;
 
@@ -47,12 +52,17 @@ namespace hashtable {
          }
 
          // Using template functor should successfully inline actual hash computation
-         FirstLevelSlot& slot = slots[reductionfn(hashfn(key))];
+         const auto idx = reductionfn(hashfn(key));
+
+         // ***** Begin critical section ***** //
+         omp_set_lock(&(locks[idx]));
+         FirstLevelSlot& slot = slots[idx];
 
          // Store directly in slot if possible
          if (slot.key == Sentinel) {
             slot.key = key;
             slot.payload = payload;
+            omp_unset_lock(&(locks[idx]));
             return true;
          }
 
@@ -62,6 +72,7 @@ namespace hashtable {
             auto b = new Bucket();
             b->slots[0] = {.key = key, .payload = payload};
             slot.buckets = b;
+            omp_unset_lock(&(locks[idx]));
             return true;
          }
 
@@ -72,9 +83,11 @@ namespace hashtable {
             for (size_t i = 0; i < BucketSize; i++) {
                if (bucket->slots[i].key == Sentinel) {
                   bucket->slots[i] = {.key = key, .payload = payload};
+                  omp_unset_lock(&(locks[idx]));
                   return true;
                } else if (bucket->slots[i].key == key) {
                   // key already exists
+                  omp_unset_lock(&(locks[idx]));
                   return false;
                }
             }
@@ -88,6 +101,8 @@ namespace hashtable {
          auto b = new Bucket();
          b->slots[0] = {.key = key, .payload = payload};
          bucket->next = b;
+
+         omp_unset_lock(&(locks[idx]));
          return true;
       }
 
@@ -303,5 +318,6 @@ namespace hashtable {
 
       // First bucket is always inline in the slot
       std::vector<FirstLevelSlot> slots;
+      std::vector<omp_lock_t> locks;
    };
 } // namespace hashtable
