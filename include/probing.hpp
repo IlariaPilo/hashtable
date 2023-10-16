@@ -248,6 +248,9 @@ namespace hashtable {
 
       ~Probing() {
          clear();
+         // destroy locks
+         for (size_t i=0; i<locks.size(); i++)
+            omp_destroy_lock(&(locks[i]));
       }
 
      protected:
@@ -476,6 +479,9 @@ namespace hashtable {
 
       ~RobinhoodProbing() {
          clear();
+         // destroy locks
+         for (size_t i=0; i<locks.size(); i++)
+            omp_destroy_lock(&(locks[i]));
       }
 
      protected:

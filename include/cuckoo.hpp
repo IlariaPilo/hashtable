@@ -245,6 +245,12 @@ namespace hashtable {
                slot.key = Sentinel;
       }
 
+      ~Cuckoo() {
+         // destroy locks
+         for (size_t i=0; i<locks.size(); i++)
+            omp_destroy_lock(&(locks[i]));
+      }
+
      private:
       void insert(Key key, Payload payload, size_t kick_count) {
       start:
