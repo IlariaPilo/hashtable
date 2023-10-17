@@ -17,9 +17,9 @@
 #include <random>
 #include <vector>
 #include <immintrin.h>
-#include <omp.h>
 
 #include "convenience/builtins.hpp"
+#include "thirdparty/spinlock.hpp"
 
 namespace hashtable {
    /**
@@ -144,7 +144,7 @@ namespace hashtable {
       } packed;
 
       std::vector<Bucket> buckets;
-      std::vector<omp_lock_t> locks;
+      std::vector<spinlock> locks;
 
       std::mt19937 rand_; // RNG for moving items around
 
@@ -155,11 +155,7 @@ namespace hashtable {
          : MaxKickCycleLength(50000), hashfn1(hashfn1), hashfn2(hashfn2),
            reductionfn1(ReductionFn1(directory_address_count(capacity))),
            reductionfn2(ReductionFn2(directory_address_count(capacity))), kickingfn(KickingFn()),
-           buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)) {
-         // initialize locks
-         for (size_t i=0; i<directory_address_count(capacity); i++)
-            omp_init_lock(&(locks[i]));
-      }
+           buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)) {}
 
       std::optional<Payload> lookup(const Key& key) const {
          const auto h1 = hashfn1(key);
@@ -243,9 +239,7 @@ namespace hashtable {
       void clear() {
          const size_t bucket_size = buckets.size();
          #pragma omp parallel for
-         for (int i=0; i<bucket_size; i++) {
-            // destroy locks
-            omp_destroy_lock(&(locks[i]));
+         for (size_t i=0; i<bucket_size; i++) {
             auto& bucket = buckets[i];
             for (auto& slot : bucket.slots) {
                slot.key = Sentinel;
@@ -278,8 +272,8 @@ namespace hashtable {
             std::swap(i1, i2);
          }
          // lock IN ORDER
-         omp_set_lock(&(locks[i1]));
-         omp_set_lock(&(locks[i2]));
+         locks[i1].lock();
+         locks[i2].lock();
 
          Bucket* b1 = &buckets[i1];
          Bucket* b2 = &buckets[i2];
@@ -288,14 +282,14 @@ namespace hashtable {
          for (size_t i = 0; i < BucketSize; i++) {
             if (b1->slots[i].key == key) {
                b1->slots[i].payload = payload;
-               omp_unset_lock(&(locks[i2]));
-               omp_unset_lock(&(locks[i1]));
+               locks[i2].unlock();
+               locks[i1].unlock();
                return;
             }
             if (b2->slots[i].key == key) {
                b2->slots[i].payload = payload;
-               omp_unset_lock(&(locks[i2]));
-               omp_unset_lock(&(locks[i1]));
+               locks[i2].unlock();
+               locks[i1].unlock();
                return;
             }
          }
@@ -305,12 +299,12 @@ namespace hashtable {
             key = kicked.value().first;
             payload = kicked.value().second;
             kick_count++;
-            omp_unset_lock(&(locks[i2]));
-            omp_unset_lock(&(locks[i1]));
+            locks[i2].unlock();
+            locks[i1].unlock();
             goto start;
          }
-         omp_unset_lock(&(locks[i2]));
-         omp_unset_lock(&(locks[i1]));
+         locks[i2].unlock();
+         locks[i1].unlock();
       }
    };
 

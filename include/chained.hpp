@@ -8,7 +8,7 @@
 #include <optional>
 #include <string>
 #include <vector>
-#include "thirdparty/spinlock.h"
+#include "thirdparty/spinlock.hpp"
 
 // Order important
 #include "convenience/builtins.hpp"

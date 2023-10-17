@@ -5,10 +5,10 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <omp.h>
 
 #include "convenience/builtins.hpp"
 #include "thirdparty/libdivide.h"
+#include "thirdparty/spinlock.hpp"
 
 namespace hashtable {
    struct LinearProbingFunc {
@@ -76,11 +76,7 @@ namespace hashtable {
       explicit Probing(const size_t& capacity, const HashFn hashfn = HashFn())
          : hashfn(hashfn), reductionfn(ReductionFn(directory_address_count(capacity))),
            probingfn(ProbingFn(directory_address_count(capacity))), capacity(capacity),
-           buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)) {
-         // initialize locks
-         for (size_t i=0; i<directory_address_count(capacity); i++)
-            omp_init_lock(&(locks[i]));
-      }
+           buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)) {}
 
       Probing(Probing&&) noexcept = default;
 
@@ -110,20 +106,20 @@ namespace hashtable {
             if (probing_step > MaxProbingSteps)
                throw std::runtime_error("Maximum probing step count (" + std::to_string(MaxProbingSteps) +
                                         ") exceeded");
-            omp_set_lock(&(locks[slot_index]));
+            locks[slot_index].lock();
             auto& bucket = buckets[slot_index];
             for (size_t i = 0; i < BucketSize; i++) {
                if (bucket.slots[i].key == Sentinel) {
                   bucket.slots[i] = {.key = key, .payload = payload};
-                  omp_unset_lock(&(locks[slot_index]));
+                  locks[slot_index].unlock();
                   return true;
                } else if (bucket.slots[i].key == key) {
                   // key already exists
-                  omp_unset_lock(&(locks[slot_index]));
+                  locks[slot_index].unlock();
                   return false;
                }
             }
-            omp_unset_lock(&(locks[slot_index]));
+            locks[slot_index].unlock();
 
             // Slot is full, choose a new slot index based on probing function
             slot_index = probingfn(orig_slot_index, ++probing_step);
@@ -242,9 +238,7 @@ namespace hashtable {
       void clear() {
          const size_t bucket_size = buckets.size();
          #pragma omp parallel for
-         for (int i=0; i<bucket_size; i++) {
-            // destroy locks
-            omp_destroy_lock(&(locks[i]));
+         for (size_t i=0; i<bucket_size; i++) {
             auto& bucket = buckets[i];
             for (auto& slot : bucket.slots) {
                slot.key = Sentinel;
@@ -267,7 +261,7 @@ namespace hashtable {
       } packed;
 
       std::vector<Bucket> buckets;
-      std::vector<omp_lock_t> locks;
+      std::vector<spinlock> locks;
    };
 
    template<class Key,
@@ -292,11 +286,7 @@ namespace hashtable {
       explicit RobinhoodProbing(const size_t& capacity, const HashFn hashfn = HashFn())
          : hashfn(hashfn), reductionfn(ReductionFn(directory_address_count(capacity))),
            probingfn(ProbingFn(directory_address_count(capacity))), capacity(capacity),
-           buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)) {
-         // initialize locks
-         for (size_t i=0; i<directory_address_count(capacity); i++)
-            omp_init_lock(&(locks[i]));
-      }
+           buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)) {}
 
       RobinhoodProbing(RobinhoodProbing&&) noexcept = default;
 
@@ -329,16 +319,16 @@ namespace hashtable {
          size_t probing_step = 0;
 
          for (;;) {
-            omp_set_lock(&(locks[slot_index]));
+            locks[slot_index].lock();
             auto& bucket = buckets[slot_index];
             for (size_t i = 0; i < BucketSize; i++) {
                if (bucket.slots[i].key == Sentinel) {
                   bucket.slots[i] = {.key = key, .payload = payload, .psl = probing_step};
-                  omp_unset_lock(&(locks[slot_index]));
+                  locks[slot_index].unlock();
                   return true;
                } else if (bucket.slots[i].key == key) {
                   // key already exists
-                  omp_unset_lock(&(locks[slot_index]));
+                  locks[slot_index].unlock();
                   return false;
                } else if (bucket.slots[i].psl < probing_step) {
                   const auto rich_slot = bucket.slots[i];
@@ -357,7 +347,7 @@ namespace hashtable {
                   orig_slot_index = reductionfn(hashfn(key));
                }
             }
-            omp_unset_lock(&(locks[slot_index]));
+            locks[slot_index].unlock();
             // Slot is full, choose a new slot index based on probing function
             slot_index = probingfn(orig_slot_index, ++probing_step);
             if (unlikely(slot_index == orig_slot_index))
@@ -475,9 +465,7 @@ namespace hashtable {
       void clear() {
          const size_t bucket_size = buckets.size();
          #pragma omp parallel for
-         for (int i=0; i<bucket_size; i++) {
-            // destroy locks
-            omp_destroy_lock(&(locks[i]));
+         for (size_t i=0; i<bucket_size; i++) {
             auto& bucket = buckets[i];
             for (auto& slot : bucket.slots) {
                slot.key = Sentinel;
@@ -501,6 +489,6 @@ namespace hashtable {
       } packed;
 
       std::vector<Bucket> buckets;
-      std::vector<omp_lock_t> locks;
+      std::vector<spinlock> locks;
    };
 } // namespace hashtable

@@ -1,4 +1,5 @@
 // this spinlock implementation can be found here https://rigtorp.se/spinlock/
+# pragma once
 
 #include <atomic>
 
