@@ -277,7 +277,13 @@ namespace hashtable {
        * still in memory (i.e., might leak if sensitive).
        */
       void clear() {
-         for (auto& slot : slots) {
+         const size_t slots_len = slots.size();
+         #pragma omp parallel for
+         for (int i=0; i<slots_len; i++) {
+            // destroy locks
+            omp_destroy_lock(&(locks[i]));
+
+            auto& slot = slots[i];
             slot.key = Sentinel;
 
             auto bucket = slot.buckets;
@@ -293,9 +299,6 @@ namespace hashtable {
 
       ~Chained() {
          clear();
-         // destroy locks
-         for (size_t i=0; i<locks.size(); i++)
-            omp_destroy_lock(&(locks[i]));
       }
 
      protected:

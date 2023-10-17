@@ -17,6 +17,7 @@
 #include <random>
 #include <vector>
 #include <immintrin.h>
+#include <omp.h>
 
 #include "convenience/builtins.hpp"
 
@@ -240,15 +241,20 @@ namespace hashtable {
       }
 
       void clear() {
-         for (auto& bucket : buckets)
-            for (auto& slot : bucket.slots)
+         const size_t bucket_size = buckets.size();
+         #pragma omp parallel for
+         for (int i=0; i<bucket_size; i++) {
+            // destroy locks
+            omp_destroy_lock(&(locks[i]));
+            auto& bucket = buckets[i];
+            for (auto& slot : bucket.slots) {
                slot.key = Sentinel;
+            }
+         }
       }
 
       ~Cuckoo() {
-         // destroy locks
-         for (size_t i=0; i<locks.size(); i++)
-            omp_destroy_lock(&(locks[i]));
+         clear();
       }
 
      private:

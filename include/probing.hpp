@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <omp.h>
 
 #include "convenience/builtins.hpp"
 #include "thirdparty/libdivide.h"
@@ -77,7 +78,7 @@ namespace hashtable {
            probingfn(ProbingFn(directory_address_count(capacity))), capacity(capacity),
            buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)) {
          // initialize locks
-         for (int i=0; i<directory_address_count(capacity); i++)
+         for (size_t i=0; i<directory_address_count(capacity); i++)
             omp_init_lock(&(locks[i]));
       }
 
@@ -239,7 +240,12 @@ namespace hashtable {
        * still in memory (i.e., might leak if sensitive).
        */
       void clear() {
-         for (auto& bucket : buckets) {
+         const size_t bucket_size = buckets.size();
+         #pragma omp parallel for
+         for (int i=0; i<bucket_size; i++) {
+            // destroy locks
+            omp_destroy_lock(&(locks[i]));
+            auto& bucket = buckets[i];
             for (auto& slot : bucket.slots) {
                slot.key = Sentinel;
             }
@@ -248,9 +254,6 @@ namespace hashtable {
 
       ~Probing() {
          clear();
-         // destroy locks
-         for (size_t i=0; i<locks.size(); i++)
-            omp_destroy_lock(&(locks[i]));
       }
 
      protected:
@@ -470,7 +473,12 @@ namespace hashtable {
        * still in memory (i.e., might leak if sensitive).
        */
       void clear() {
-         for (auto& bucket : buckets) {
+         const size_t bucket_size = buckets.size();
+         #pragma omp parallel for
+         for (int i=0; i<bucket_size; i++) {
+            // destroy locks
+            omp_destroy_lock(&(locks[i]));
+            auto& bucket = buckets[i];
             for (auto& slot : bucket.slots) {
                slot.key = Sentinel;
             }
@@ -479,9 +487,6 @@ namespace hashtable {
 
       ~RobinhoodProbing() {
          clear();
-         // destroy locks
-         for (size_t i=0; i<locks.size(); i++)
-            omp_destroy_lock(&(locks[i]));
       }
 
      protected:
