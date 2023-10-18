@@ -1,6 +1,14 @@
 // this spinlock implementation can be found here https://rigtorp.se/spinlock/
 # pragma once
 
+#if defined(__x86_64__)
+#define X86_ARCHITECTURE
+#elif defined(__arm__)
+#define ARM_ARCHITECTURE
+#else
+#define UNKNOWN_ARCHITECTURE
+#endif
+
 #include <atomic>
 
 struct spinlock {
@@ -16,7 +24,13 @@ struct spinlock {
       while (lock_.load(std::memory_order_relaxed)) {
         // Issue X86 PAUSE or ARM YIELD instruction to reduce contention between
         // hyper-threads TODO
+        #ifdef X86_ARCHITECTURE
+        // Use x86-specific code
         __builtin_ia32_pause();
+        #elif defined(ARM_ARCHITECTURE)
+        // Use ARM-specific code
+        __builtin_arm_yield();
+        #endif
       }
     }
   }
