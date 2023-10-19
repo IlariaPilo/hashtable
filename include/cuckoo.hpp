@@ -18,6 +18,8 @@
 #include <vector>
 #include <immintrin.h>
 
+#include <atomic>
+
 #include "convenience/builtins.hpp"
 #include "thirdparty/spinlock.hpp"
 
@@ -146,6 +148,8 @@ namespace hashtable {
       std::vector<Bucket> buckets;
       std::vector<spinlock> locks;
 
+      std::atomic<bool> has_failed;
+
       std::mt19937 rand_; // RNG for moving items around
 
       size_t max_kick_cnt = 0, total_kick_cnt = 0;
@@ -155,7 +159,8 @@ namespace hashtable {
          : MaxKickCycleLength(50000), hashfn1(hashfn1), hashfn2(hashfn2),
            reductionfn1(ReductionFn1(directory_address_count(capacity))),
            reductionfn2(ReductionFn2(directory_address_count(capacity))), kickingfn(KickingFn()),
-           buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)) {}
+           buckets(directory_address_count(capacity)), locks(directory_address_count(capacity)),
+           has_failed(false) {}
 
       std::optional<Payload> lookup(const Key& key) const {
          const auto h1 = hashfn1(key);
@@ -255,6 +260,7 @@ namespace hashtable {
       void insert(Key key, Payload payload, size_t kick_count) {
       start:
          if (kick_count > MaxKickCycleLength) {
+            has_failed.store(true, std::memory_order_relaxed);
             throw std::runtime_error("maximum kick cycle length (" + std::to_string(MaxKickCycleLength) + ") reached");
          }
          max_kick_cnt = std::max(max_kick_cnt, kick_count);
@@ -301,6 +307,8 @@ namespace hashtable {
             kick_count++;
             locks[i2].unlock();
             locks[i1].unlock();
+            if (has_failed.load(std::memory_order_relaxed))
+               return;
             goto start;
          }
          locks[i2].unlock();
